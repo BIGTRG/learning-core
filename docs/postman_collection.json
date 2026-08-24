@@ -1,0 +1,703 @@
+{
+  "info": {
+    "name": "Learning Core API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://167.233.117.23:8461"
+    },
+    {
+      "key": "api_key",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "POST /v1/learners",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/learners",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "learners"
+          ]
+        },
+        "description": "Create a learner. external_ref is your own stable user id.",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "GET /v1/learners",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/learners",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "learners"
+          ]
+        },
+        "description": "List learners (cursor pagination)."
+      }
+    },
+    {
+      "name": "GET /v1/learners/:id",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/learners/:id",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "learners",
+            ":id"
+          ]
+        },
+        "description": "Fetch one learner."
+      }
+    },
+    {
+      "name": "GET /v1/learners/:id/progress",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/learners/:id/progress",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "learners",
+            ":id",
+            "progress"
+          ]
+        },
+        "description": "Recomputed progress across all of a learner's enrollments."
+      }
+    },
+    {
+      "name": "POST /v1/courses",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/courses",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "courses"
+          ]
+        },
+        "description": "Create a course, optionally with modules.",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "GET /v1/courses",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/courses",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "courses"
+          ]
+        },
+        "description": "List courses (cursor pagination)."
+      }
+    },
+    {
+      "name": "GET /v1/courses/:id",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/courses/:id",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "courses",
+            ":id"
+          ]
+        },
+        "description": "Fetch a course with its modules and lesson metadata (not bodies)."
+      }
+    },
+    {
+      "name": "POST /v1/courses/:id/lessons",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/courses/:id/lessons",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "courses",
+            ":id",
+            "lessons"
+          ]
+        },
+        "description": "Add a lesson (typed blocks + citations) to a course.",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "GET /v1/lessons/:id",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/lessons/:id",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "lessons",
+            ":id"
+          ]
+        },
+        "description": "Fetch a lesson: typed content blocks and citation rows. Never markup."
+      }
+    },
+    {
+      "name": "POST /v1/assessments",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/assessments",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "assessments"
+          ]
+        },
+        "description": "Create an assessment with its items. Answer keys are stored server-side and never returned.",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "GET /v1/assessments/:id",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/assessments/:id",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "assessments",
+            ":id"
+          ]
+        },
+        "description": "Fetch an assessment and its items — prompts and options only, never answer keys."
+      }
+    },
+    {
+      "name": "POST /v1/enrollments",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/enrollments",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "enrollments"
+          ]
+        },
+        "description": "Enrol a learner in a course.",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "GET /v1/enrollments/:id",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/enrollments/:id",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "enrollments",
+            ":id"
+          ]
+        },
+        "description": "Fetch an enrollment with recomputed progress. The server computes; the client never asserts."
+      }
+    },
+    {
+      "name": "POST /v1/enrollments/:id/lessons/:lessonId/complete",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/enrollments/:id/lessons/:lessonId/complete",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "enrollments",
+            ":id",
+            "lessons",
+            ":lessonId",
+            "complete"
+          ]
+        },
+        "description": "Record a lesson completion; returns recomputed course progress."
+      }
+    },
+    {
+      "name": "POST /v1/attempts",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/attempts",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "attempts"
+          ]
+        },
+        "description": "Start an assessment attempt. Requires course completion for the enrolled course.",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "POST /v1/attempts/:id/answers",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/attempts/:id/answers",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "attempts",
+            ":id",
+            "answers"
+          ]
+        },
+        "description": "Record answers on an in-progress attempt (upsert per item).",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "POST /v1/attempts/:id/submit",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/attempts/:id/submit",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "attempts",
+            ":id",
+            "submit"
+          ]
+        },
+        "description": "Submit and score an attempt server-side with partial credit. Constructed items park it at needs_grading."
+      }
+    },
+    {
+      "name": "POST /v1/attempts/:id/grade",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/attempts/:id/grade",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "attempts",
+            ":id",
+            "grade"
+          ]
+        },
+        "description": "Grade constructed items on a needs_grading attempt (admin scope), then finalise the score.",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "POST /v1/credentials",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/credentials",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "credentials"
+          ]
+        },
+        "description": "Issue a credential for a passing attempt. The database enforces the passing requirement.",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "GET /v1/credentials/:id",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/credentials/:id",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "credentials",
+            ":id"
+          ]
+        },
+        "description": "Fetch one credential with its competency tags."
+      }
+    },
+    {
+      "name": "GET /v1/usage",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/usage",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "usage"
+          ]
+        },
+        "description": "Your own metered usage by day. A customer who cannot audit their bill will not renew."
+      }
+    },
+    {
+      "name": "GET /v1/verify/:ref (public)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/v1/verify/LC-XXXX-XXXX-XXXX-XX",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "verify",
+            "LC-XXXX-XXXX-XXXX-XX"
+          ]
+        },
+        "description": "Public credential verification. No API key."
+      }
+    }
+  ]
+}

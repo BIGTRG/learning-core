@@ -1,0 +1,18 @@
+{
+  "name": "learning-core",
+  "version": "1.0.0",
+  "description": "Headless multi-tenant learning API. Owner: Robinson Family Trust. Operator: Robinson Employment Institute, LLC.",
+  "private": true,
+  "main": "src/server.js",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/server.js",
+    "migrate": "node scripts/migrate.js",
+    "test": "node --test test/",
+    "openapi": "node -e \"console.log(JSON.stringify(require('./src/openapi').generate(), null, 2))\""
+  },
+  "dependencies": {
+    "pg": "^8.12.0",
+    "redis": "^4.7.0"
+  }
+}
