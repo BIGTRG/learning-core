@@ -24,6 +24,9 @@ function check(value, schema, path = 'body') {
       }
       check(v, prop, `${path}.${k}`);
     }
+    if (schema.minProperties && Object.keys(value).length < schema.minProperties) {
+      fail(path, `must have at least ${schema.minProperties} field(s)`);
+    }
     return value;
   }
   if (schema.type === 'array') {

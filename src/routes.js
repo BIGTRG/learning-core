@@ -128,6 +128,19 @@ const S = {
       },
     },
   },
+  learnerPatch: {
+    type: 'object', additionalProperties: false, minProperties: 1,
+    properties: {
+      display_name: { type: 'string', minLength: 1, maxLength: 200 },
+      external_ref: { type: 'string', minLength: 1, maxLength: 200 },
+    },
+  },
+  credentialRevoke: {
+    type: 'object', required: ['reason'], additionalProperties: false,
+    properties: {
+      reason: { type: 'string', minLength: 1, maxLength: 500 },
+    },
+  },
   credentialCreate: {
     type: 'object', required: ['attempt_id'], additionalProperties: false,
     properties: {
@@ -266,6 +279,29 @@ const ROUTES = [
       const row = await one(client,
         'SELECT id, external_ref, display_name, created_at FROM learner WHERE id = $1', [ctx.params.id]);
       return { status: 200, body: row };
+    },
+  },
+  {
+    method: 'PATCH', path: '/v1/learners/:id', scope: 'write', schema: S.learnerPatch,
+    summary: 'Update a learner. external_ref is meant to be permanent: a contact change (email, employer, name) is a display_name change at most. external_ref may only be moved to a value no other learner of yours holds (409 otherwise); the id, enrollments, attempts and credentials stay attached.',
+    handler: async (client, ctx) => {
+      const b = ctx.body;
+      const cur = await one(client,
+        'SELECT id, external_ref, display_name FROM learner WHERE id = $1', [ctx.params.id]);
+      if (b.external_ref !== undefined && b.external_ref !== cur.external_ref) {
+        const clash = await client.query(
+          'SELECT 1 FROM learner WHERE external_ref = $1 AND id <> $2', [b.external_ref, cur.id]);
+        if (clash.rows.length > 0) {
+          throw new ApiProblem('conflict', 'Another learner already holds that external_ref.');
+        }
+      }
+      const { rows } = await client.query(
+        `UPDATE learner SET display_name = COALESCE($2, display_name),
+                            external_ref = COALESCE($3, external_ref)
+          WHERE id = $1
+          RETURNING id, external_ref, display_name, created_at`,
+        [cur.id, b.display_name ?? null, b.external_ref ?? null]);
+      return { status: 200, body: rows[0] };
     },
   },
   {
@@ -633,12 +669,32 @@ const ROUTES = [
     summary: 'Fetch one credential with its competency tags.',
     handler: async (client, ctx) => {
       const cred = await one(client,
-        `SELECT id, learner_id, course_id, attempt_id, public_ref, status, issued_at, revoked_at
+        `SELECT id, learner_id, course_id, attempt_id, public_ref, status, issued_at, revoked_at, revoke_reason
            FROM credential WHERE id = $1`, [ctx.params.id]);
       const tags = (await client.query(`
         SELECT t.code, t.label FROM credential_tag ct JOIN competency_tag t ON t.id = ct.tag_id
          WHERE ct.credential_id = $1`, [cred.id])).rows;
       return { status: 200, body: { ...cred, tags } };
+    },
+  },
+
+  {
+    method: 'POST', path: '/v1/credentials/:id/revoke', scope: 'write', schema: S.credentialRevoke,
+    summary: 'Revoke a credential with a reason. One-way: a revoked credential can never be reactivated (database-enforced). The public verify record then reports status revoked with the reason.',
+    handler: async (client, ctx) => {
+      const cred = await one(client,
+        'SELECT id, status, revoked_at, revoke_reason FROM credential WHERE id = $1', [ctx.params.id]);
+      if (cred.status === 'revoked') {
+        throw new ApiProblem('invariant-violation',
+          `Credential is already revoked (${new Date(cred.revoked_at).toISOString()}); revocation is permanent.`);
+      }
+      const { rows } = await client.query(
+        `UPDATE credential SET status = 'revoked', revoked_at = now(), revoke_reason = $2
+          WHERE id = $1 AND status = 'active'
+          RETURNING id, learner_id, course_id, attempt_id, public_ref, status, issued_at, revoked_at, revoke_reason`,
+        [cred.id, ctx.body.reason]);
+      if (rows.length === 0) throw new ApiProblem('conflict', 'Credential changed concurrently; re-read it.');
+      return { status: 200, body: rows[0] };
     },
   },
 

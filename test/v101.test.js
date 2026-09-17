@@ -254,3 +254,89 @@ test('answer key is readable only with admin scope, only within the tenant, and 
   const plain = await api(A.key, 'GET', `/v1/assessments/${fx.assessment.id}`);
   assert.equal(plain.text.includes('answer_key'), false);
 });
+
+// ---- v1.0.4: credential revoke (one-way, reason on public verify), rank meta on verify, learner PATCH ----
+
+test('revoke is one-way with a required reason; public verify shows revoked + reason + rank meta and no extra personal data', async () => {
+  const scheme = (await api(A.key, 'POST', '/v1/schemes', {
+    name: `Verify meta ${crypto.randomBytes(2).toString('hex')}`,
+    ranks: [{ name: 'Step one', position: 1, meta: { fill: '#CC6B2C', ink: '#0E1922' } }],
+  })).json;
+  const fx = await fixture(A.key, { scheme_id: scheme.id, rank_id: scheme.ranks[0].id });
+  const { attempt } = await passAttempt(A.key, fx);
+  const cred = (await api(A.key, 'POST', '/v1/credentials', { attempt_id: attempt.id })).json;
+  assert.equal(cred.status, 'active');
+
+  // verify before revocation carries the rank meta
+  const v0 = await api(null, 'GET', `/v1/verify/${cred.public_ref}`);
+  assert.equal(v0.status, 200, v0.text);
+  assert.equal(v0.json.status, 'active');
+  assert.deepEqual(v0.json.rank_meta, { fill: '#CC6B2C', ink: '#0E1922' });
+  assert.equal(v0.json.rank_name, 'Step one');
+  assert.equal(v0.json.revoke_reason, null);
+
+  // reason is required
+  const noReason = await api(A.key, 'POST', `/v1/credentials/${cred.id}/revoke`, {});
+  assert.equal(noReason.status, 422);
+
+  // other tenant cannot revoke it (404, never 403)
+  const cross = await api(B.key, 'POST', `/v1/credentials/${cred.id}/revoke`, { reason: 'not mine' });
+  assert.equal(cross.status, 404);
+
+  const rev = await api(A.key, 'POST', `/v1/credentials/${cred.id}/revoke`, { reason: 'Issued in error: assessment attempt was invalidated.' });
+  assert.equal(rev.status, 200, rev.text);
+  assert.equal(rev.json.status, 'revoked');
+  assert.ok(rev.json.revoked_at);
+  assert.equal(rev.json.revoke_reason, 'Issued in error: assessment attempt was invalidated.');
+
+  // second revoke is refused; nothing changes
+  const again = await api(A.key, 'POST', `/v1/credentials/${cred.id}/revoke`, { reason: 'again' });
+  assert.equal(again.status, 409);
+  const read = await api(A.key, 'GET', `/v1/credentials/${cred.id}`);
+  assert.equal(read.json.revoke_reason, 'Issued in error: assessment attempt was invalidated.');
+  assert.equal(read.json.revoked_at, rev.json.revoked_at);
+
+  // the database refuses reactivation even for a direct superuser update
+  await assert.rejects(
+    admin.query(`UPDATE credential SET status = 'active', revoked_at = NULL, revoke_reason = NULL WHERE id = $1`, [cred.id]),
+    /revocation is permanent/);
+
+  const v1 = await api(null, 'GET', `/v1/verify/${cred.public_ref}`);
+  assert.equal(v1.status, 200);
+  assert.equal(v1.json.status, 'revoked');
+  assert.equal(v1.json.revoke_reason, 'Issued in error: assessment attempt was invalidated.');
+  assert.ok(v1.json.revoked_at);
+  assert.deepEqual(Object.keys(v1.json).sort(), [
+    'course_title', 'issued_at', 'issuer', 'learner_name', 'public_ref', 'rank_meta', 'rank_name', 'revoke_reason', 'revoked_at', 'status',
+  ]);
+});
+
+test('PATCH learner: display_name changes, external_ref stays; moving external_ref onto an existing one is 409; empty patch is 422', async () => {
+  const ref = `ulid_${crypto.randomBytes(6).toString('hex')}`;
+  const other = `ulid_${crypto.randomBytes(6).toString('hex')}`;
+  const l = (await api(A.key, 'POST', '/v1/learners', { external_ref: ref, display_name: 'Before Change' })).json;
+  await api(A.key, 'POST', '/v1/learners', { external_ref: other, display_name: 'Someone Else' });
+
+  const p1 = await api(A.key, 'PATCH', `/v1/learners/${l.id}`, { display_name: 'After Change' });
+  assert.equal(p1.status, 200, p1.text);
+  assert.equal(p1.json.display_name, 'After Change');
+  assert.equal(p1.json.external_ref, ref);
+  assert.equal(p1.json.id, l.id);
+
+  const clash = await api(A.key, 'PATCH', `/v1/learners/${l.id}`, { external_ref: other });
+  assert.equal(clash.status, 409);
+
+  const empty = await api(A.key, 'PATCH', `/v1/learners/${l.id}`, {});
+  assert.equal(empty.status, 422);
+
+  const unknown = await api(A.key, 'PATCH', `/v1/learners/${l.id}`, { email: 'x@example.com' });
+  assert.equal(unknown.status, 422);
+
+  const cross = await api(B.key, 'PATCH', `/v1/learners/${l.id}`, { display_name: 'Hijack' });
+  assert.equal(cross.status, 404);
+
+  const fresh = `ulid_${crypto.randomBytes(6).toString('hex')}`;
+  const move = await api(A.key, 'PATCH', `/v1/learners/${l.id}`, { external_ref: fresh });
+  assert.equal(move.status, 200, move.text);
+  assert.equal(move.json.external_ref, fresh);
+});

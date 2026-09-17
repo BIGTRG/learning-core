@@ -29,11 +29,11 @@ row on the next page. Cursors are encoded from microsecond-precise text.
 ## Layout
 
 ```
-db/migrations/   001 schema (23 tables, RLS forced on 20) · 002 verify fn
+db/migrations/   001 schema (23 tables, RLS forced on 20) · 002 verify fn · 003 rank meta, approvals · 004 revoke reason, verify meta
 db/roles.sql     lc_app role + guard (password via psql -v, never committed)
 src/             zero-framework node:http API — see src/routes.js for the table
 scripts/         migrate · tenant/key admin · seed · usage rollup · idempotency sweep
-test/            27 tests, run against the deployed stack
+test/            40 tests, run against the deployed stack
 openapi.json     generated: npm run openapi > openapi.json (CI-checked)
 ```
 
@@ -70,7 +70,12 @@ curl -s $B/v1/attempts -X POST -H "Authorization: Bearer $K" -H "Content-Type: a
 curl -s $B/v1/attempts/<id>/submit -X POST -H "Authorization: Bearer $K"
 curl -s $B/v1/credentials -X POST -H "Authorization: Bearer $K" -H "Content-Type: application/json" \
      -d '{"attempt_id":"<uuid>"}'
+curl -s $B/v1/credentials/<id>/revoke -X POST -H "Authorization: Bearer $K" -H "Content-Type: application/json" \
+     -d '{"reason":"Issued in error"}'                 # one-way; 409 if already revoked
+curl -s $B/v1/learners/<id> -X PATCH -H "Authorization: Bearer $K" -H "Content-Type: application/json" \
+     -d '{"display_name":"Maria Alvarez-Reyes"}'      # external_ref stays; may move only to an unused value (409 otherwise)
 curl -s $B/v1/verify/LC-XXXX-XXXX-XXXX-XX          # public, no key
+# verify -> {public_ref,status,learner_name,course_title,rank_name,rank_meta,issuer,issued_at,revoked_at,revoke_reason}
 curl -s "$B/v1/usage?from=2026-08-01&to=2026-08-31" -H "Authorization: Bearer $K"
 ```
 

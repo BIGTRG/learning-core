@@ -1,6 +1,6 @@
 {
   "name": "learning-core",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Headless multi-tenant learning API. Owner: Robinson Family Trust. Operator: Robinson Employment Institute, LLC.",
   "private": true,
   "main": "src/server.js",
