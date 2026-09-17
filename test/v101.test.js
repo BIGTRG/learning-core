@@ -236,3 +236,21 @@ test('course detail lists its assessments; enrollment exposes completed lesson i
   assert.equal((await api(B.key, 'GET', `/v1/attempts/${attempt.id}`)).status, 404);
   assert.equal(JSON.stringify(read.json).includes('answer_key'), false);
 });
+
+// ---- v1.0.3 answer key for server-side graders ----
+
+test('answer key is readable only with admin scope, only within the tenant, and only on its own path', async () => {
+  const fx = await fixture(A.key);
+  const ok = await api(A.key, 'GET', `/v1/assessments/${fx.assessment.id}/answer-key`);
+  assert.equal(ok.status, 200, ok.text);
+  assert.equal(ok.json.assessment_id, fx.assessment.id);
+  assert.deepEqual(ok.json.items.map((i) => i.answer_key), [['b'], ['a', 'b']]);
+  assert.equal(ok.json.items[1].points, 2);
+  const rw = await readOnlyKey(A);
+  const denied = await api(rw, 'GET', `/v1/assessments/${fx.assessment.id}/answer-key`);
+  assert.equal(denied.status, 403, denied.text);
+  assert.equal(denied.json.type.endsWith('insufficient-scope'), true);
+  assert.equal((await api(B.key, 'GET', `/v1/assessments/${fx.assessment.id}/answer-key`)).status, 404);
+  const plain = await api(A.key, 'GET', `/v1/assessments/${fx.assessment.id}`);
+  assert.equal(plain.text.includes('answer_key'), false);
+});

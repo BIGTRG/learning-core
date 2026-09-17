@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Learning Core API",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "Headless multi-tenant learning API: structured course content, recomputed progress, server-side scoring with partial credit, publicly verifiable credentials, and metered usage. Content is typed JSON blocks, never markup."
   },
   "servers": [
@@ -733,6 +733,50 @@
       "get": {
         "summary": "Fetch an assessment and its items — prompts and options only, never answer keys.",
         "operationId": "get_v1_assessments_id",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Errors are RFC 9457 Problem Details (application/problem+json).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "2XX": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/assessments/{id}/answer-key": {
+      "get": {
+        "summary": "Answer keys for every item of an assessment (admin scope only). For a consumer that grades constructed items server-side and posts points through /v1/attempts/{id}/grade. Never expose to a learner.",
+        "operationId": "get_v1_assessments_id_answer-key",
         "security": [
           {
             "apiKey": []
