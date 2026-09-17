@@ -193,12 +193,17 @@ async function recomputeProgress(client, enrollmentId) {
     FROM enrollment e WHERE e.id = $1`, [enrollmentId]);
   const pct = row.total_lessons > 0
     ? Math.round((row.completed_lessons / row.total_lessons) * 10000) / 100 : 0;
+  const completedIds = (await client.query(
+    `SELECT p.lesson_id FROM lesson_progress p JOIN lesson l ON l.id = p.lesson_id
+      WHERE p.enrollment_id = $1 AND l.status = 'published' ORDER BY p.completed_at`, [enrollmentId]))
+    .rows.map((r) => r.lesson_id);
   return {
     enrollment_id: row.id,
     learner_id: row.learner_id,
     course_id: row.course_id,
     lessons_total: row.total_lessons,
     lessons_completed: row.completed_lessons,
+    completed_lesson_ids: completedIds,
     percent_complete: pct,
     complete: row.total_lessons > 0 && row.completed_lessons >= row.total_lessons,
   };
@@ -325,7 +330,10 @@ const ROUTES = [
       const lessons = (await client.query(
         `SELECT id, module_id, title, summary, position, est_minutes, status
            FROM lesson WHERE course_id = $1 ORDER BY position`, [course.id])).rows;
-      return { status: 200, body: { ...course, modules, lessons } };
+      const assessments = (await client.query(
+        `SELECT id, title, pass_percent, time_limit_minutes, max_attempts, status
+           FROM assessment WHERE course_id = $1 ORDER BY created_at`, [course.id])).rows;
+      return { status: 200, body: { ...course, modules, lessons, assessments } };
     },
   },
   {
@@ -536,6 +544,22 @@ const ROUTES = [
       const result = await scoreAndStore(client, attempt);
       ctx.learnerActive = true;
       return { status: 200, body: result };
+    },
+  },
+  {
+    method: 'GET', path: '/v1/attempts/:id', scope: 'read',
+    summary: 'Fetch an attempt with its status, score and per-item points awarded. Never answer keys.',
+    handler: async (client, ctx) => {
+      const a = await one(client,
+        `SELECT id, enrollment_id, assessment_id, status, started_at, submitted_at, score_percent, passed
+           FROM attempt WHERE id = $1`, [ctx.params.id]);
+      const items = (await client.query(
+        `SELECT i.id AS item_id, i.position, i.points, aa.points_awarded, (aa.item_id IS NOT NULL) AS answered
+           FROM assessment_item i LEFT JOIN attempt_answer aa ON aa.item_id = i.id AND aa.attempt_id = $1
+          WHERE i.assessment_id = $2 ORDER BY i.position`, [a.id, a.assessment_id])).rows
+        .map((r) => ({ item_id: r.item_id, position: r.position, points: Number(r.points),
+          points_awarded: r.points_awarded === null ? null : Number(r.points_awarded), answered: r.answered }));
+      return { status: 200, body: { ...a, items } };
     },
   },
   {
@@ -810,6 +834,14 @@ async function scoreAndStore(client, attempt, manualPoints = new Map()) {
     score_percent: result.needsGrading ? null : result.scorePercent,
     passed: result.passed,
     needs_grading: result.needsGrading,
+    // per-item outcome, never the key: enough for the learner to see which
+    // elements they missed and for the app to point them back to the lesson
+    items: items.map((it) => ({
+      item_id: it.id,
+      points: Number(it.points),
+      points_awarded: result.perItem.has(it.id) ? result.perItem.get(it.id) : 0,
+      answered: answers.has(it.id),
+    })),
   };
 }
 

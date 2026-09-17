@@ -1,9 +1,10 @@
 'use strict';
 // v1.0.1 — schemes/ranks over HTTP, rank meta, stale citations, approvals.
+// v1.0.2 — course.assessments, enrollment.completed_lesson_ids, attempt read + per-item results.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const crypto = require('node:crypto');
-const { adminClient, makeTenant, api, fixture } = require('./helpers');
+const { adminClient, makeTenant, api, fixture, passAttempt } = require('./helpers');
 
 let admin, A, B;
 
@@ -204,4 +205,34 @@ test('approvals are append-only for the app role (no UPDATE/DELETE grant)', asyn
   const privs = rows.map((r) => r.privilege_type);
   assert.ok(privs.includes('INSERT') && privs.includes('SELECT'), `lc_app privs on approval: ${privs}`);
   assert.ok(!privs.includes('UPDATE') && !privs.includes('DELETE'), `approval must be append-only for lc_app: ${privs}`);
+});
+
+// ---- v1.0.2 read shapes ----
+
+test('course detail lists its assessments; enrollment exposes completed lesson ids; attempt is readable with per-item points', async () => {
+  const fx = await fixture(A.key);
+  const course = await api(A.key, 'GET', `/v1/courses/${fx.course.id}`);
+  assert.equal(course.status, 200);
+  assert.deepEqual(course.json.assessments.map((a) => a.id), [fx.assessment.id]);
+  assert.equal(course.json.assessments[0].pass_percent, 50);
+  assert.ok(!('items' in course.json.assessments[0]));
+
+  const before = await api(A.key, 'GET', `/v1/enrollments/${fx.enrollment.id}`);
+  assert.deepEqual(before.json.completed_lesson_ids, []);
+  const { attempt, result } = await passAttempt(A.key, fx);
+  const after = await api(A.key, 'GET', `/v1/enrollments/${fx.enrollment.id}`);
+  assert.deepEqual(after.json.completed_lesson_ids, [fx.lesson.id]);
+
+  assert.equal(result.items.length, 2);
+  assert.ok(result.items.every((i) => 'points_awarded' in i && 'points' in i && !('answer_key' in i)));
+  assert.equal(result.items.reduce((s, i) => s + i.points_awarded, 0), 3);
+
+  const read = await api(A.key, 'GET', `/v1/attempts/${attempt.id}`);
+  assert.equal(read.status, 200, read.text);
+  assert.equal(read.json.status, 'scored');
+  assert.equal(read.json.passed, true);
+  assert.equal(read.json.items.length, 2);
+  assert.ok(read.json.items.every((i) => i.answered === true && !('answer_key' in i) && !('response' in i)));
+  assert.equal((await api(B.key, 'GET', `/v1/attempts/${attempt.id}`)).status, 404);
+  assert.equal(JSON.stringify(read.json).includes('answer_key'), false);
 });
