@@ -421,6 +421,18 @@ const ROUTES = [
       return { status: 200, body: { ...a, items } };
     },
   },
+  {
+    method: 'GET', path: '/v1/assessments/:id/answer-key', scope: 'admin',
+    summary: 'Answer keys for every item of an assessment (admin scope only). For a consumer that grades constructed items server-side and posts points through /v1/attempts/{id}/grade. Never expose to a learner.',
+    handler: async (client, ctx) => {
+      const a = await one(client, 'SELECT id, course_id, pass_percent FROM assessment WHERE id = $1', [ctx.params.id]);
+      const items = (await client.query(
+        `SELECT id, position, kind, points, answer_key
+           FROM assessment_item WHERE assessment_id = $1 ORDER BY position`, [a.id])).rows
+        .map((r) => ({ id: r.id, position: r.position, kind: r.kind, points: Number(r.points), answer_key: r.answer_key }));
+      return { status: 200, body: { assessment_id: a.id, course_id: a.course_id, pass_percent: a.pass_percent, items } };
+    },
+  },
 
   // enrollments & progress
   {
