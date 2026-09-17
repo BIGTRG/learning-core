@@ -135,6 +135,38 @@ const S = {
       tag_codes: { type: 'array', maxItems: 100, items: { type: 'string' } },
     },
   },
+  schemeCreate: {
+    type: 'object', required: ['name', 'ranks'], additionalProperties: false,
+    properties: {
+      name: { type: 'string', minLength: 1, maxLength: 200 },
+      ranks: {
+        type: 'array', minItems: 1, maxItems: 50,
+        items: {
+          type: 'object', required: ['name', 'position'], additionalProperties: false,
+          properties: {
+            name: { type: 'string', minLength: 1, maxLength: 200 },
+            position: { type: 'integer', minimum: 1 },
+            meta: { type: 'object', description: 'Opaque tenant presentation data (e.g. colour). Max 2KB.' },
+          },
+        },
+      },
+    },
+  },
+  rankMeta: {
+    type: 'object', required: ['meta'], additionalProperties: false,
+    properties: { meta: { type: 'object', description: 'Replaces the rank meta object. Max 2KB.' } },
+  },
+  approvalCreate: {
+    type: 'object', required: ['subject_kind', 'subject_id', 'approver_role', 'approver_ref'], additionalProperties: false,
+    properties: {
+      subject_kind: { type: 'string', enum: ['course', 'lesson', 'assessment'] },
+      subject_id: { type: 'string', format: 'uuid' },
+      approver_role: { type: 'string', minLength: 1, maxLength: 100 },
+      approver_ref: { type: 'string', minLength: 1, maxLength: 300 },
+      approved_on: { type: 'string', maxLength: 10 },
+      note: { type: 'string', maxLength: 4000 },
+    },
+  },
 };
 
 // ---------- helpers ----------
@@ -170,6 +202,16 @@ async function recomputeProgress(client, enrollmentId) {
     percent_complete: pct,
     complete: row.total_lessons > 0 && row.completed_lessons >= row.total_lessons,
   };
+}
+
+function checkMeta(meta) {
+  if (meta === undefined) return;
+  if (meta === null || typeof meta !== 'object' || Array.isArray(meta)) {
+    throw new ApiProblem('validation-error', 'meta must be a JSON object.');
+  }
+  if (Buffer.byteLength(JSON.stringify(meta)) > 2048) {
+    throw new ApiProblem('validation-error', 'meta must be 2KB or smaller.');
+  }
 }
 
 const LIST_QUERY_PARAMS = [
@@ -582,6 +624,159 @@ const ROUTES = [
         `SELECT day, api_calls, active_learners FROM usage_daily
           WHERE day >= $1 AND day <= $2 ORDER BY day`, [from, to]);
       return { status: 200, body: { from, to, days: rows } };
+    },
+  },
+
+  // progression schemes & ranks (vocabulary-neutral; the app names them)
+  {
+    method: 'POST', path: '/v1/schemes', scope: 'admin', schema: S.schemeCreate,
+    summary: 'Create a progression scheme with its ordered ranks. Rank meta is opaque tenant data.',
+    handler: async (client, ctx) => {
+      const b = ctx.body;
+      const positions = new Set();
+      for (const r of b.ranks) {
+        if (positions.has(r.position)) throw new ApiProblem('validation-error', `Duplicate rank position ${r.position}.`);
+        positions.add(r.position);
+        checkMeta(r.meta);
+      }
+      const dup = await client.query('SELECT id FROM progression_scheme WHERE name = $1', [b.name]);
+      if (dup.rows.length) throw new ApiProblem('conflict', 'A scheme with this name already exists.');
+      const scheme = (await client.query(
+        `INSERT INTO progression_scheme (tenant_id, name) VALUES ($1, $2) RETURNING id, name, created_at`,
+        [ctx.tenantId, b.name])).rows[0];
+      const ranks = [];
+      for (const r of [...b.ranks].sort((x, y) => x.position - y.position)) {
+        ranks.push((await client.query(
+          `INSERT INTO rank (tenant_id, scheme_id, name, position, meta) VALUES ($1, $2, $3, $4, $5)
+           RETURNING id, name, position, meta`,
+          [ctx.tenantId, scheme.id, r.name, r.position, JSON.stringify(r.meta || {})])).rows[0]);
+      }
+      return { status: 201, body: { ...scheme, ranks } };
+    },
+  },
+  {
+    method: 'GET', path: '/v1/schemes', scope: 'read',
+    summary: 'List progression schemes with their ranks (ordered by position).',
+    handler: async (client) => {
+      const schemes = (await client.query(
+        'SELECT id, name, created_at FROM progression_scheme ORDER BY created_at, id')).rows;
+      const ranks = (await client.query(
+        'SELECT id, scheme_id, name, position, meta FROM rank ORDER BY scheme_id, position')).rows;
+      const byScheme = new Map(schemes.map((s) => [s.id, []]));
+      for (const r of ranks) if (byScheme.has(r.scheme_id)) byScheme.get(r.scheme_id).push(r);
+      return { status: 200, body: { items: schemes.map((s) => ({ ...s, ranks: byScheme.get(s.id) })) } };
+    },
+  },
+  {
+    method: 'GET', path: '/v1/schemes/:id', scope: 'read',
+    summary: 'Fetch one progression scheme with its ranks.',
+    handler: async (client, ctx) => {
+      const scheme = await one(client,
+        'SELECT id, name, created_at FROM progression_scheme WHERE id = $1', [ctx.params.id]);
+      const ranks = (await client.query(
+        'SELECT id, scheme_id, name, position, meta FROM rank WHERE scheme_id = $1 ORDER BY position',
+        [scheme.id])).rows;
+      return { status: 200, body: { ...scheme, ranks } };
+    },
+  },
+  {
+    method: 'POST', path: '/v1/ranks/:id/meta', scope: 'admin', schema: S.rankMeta,
+    summary: 'Replace the opaque meta object on a rank.',
+    handler: async (client, ctx) => {
+      checkMeta(ctx.body.meta);
+      const rank = await one(client,
+        `UPDATE rank SET meta = $2 WHERE id = $1 RETURNING id, scheme_id, name, position, meta`,
+        [ctx.params.id, JSON.stringify(ctx.body.meta)]);
+      return { status: 200, body: rank };
+    },
+  },
+
+  // content freshness
+  {
+    method: 'GET', path: '/v1/content/stale', scope: 'read',
+    queryParams: [
+      { name: 'days', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 3650 } },
+      ...LIST_QUERY_PARAMS,
+    ],
+    summary: 'Citations whose verified_on is older than `days` (default 180) or missing, with their lesson and course.',
+    handler: async (client, ctx) => {
+      const days = ctx.query.days === undefined ? 180 : parseInt(ctx.query.days, 10);
+      if (!Number.isInteger(days) || days < 1 || days > 3650) {
+        throw new ApiProblem('validation-error', 'days must be an integer between 1 and 3650.');
+      }
+      const limit = parseLimit(ctx.query);
+      const cur = decodeCursor(ctx.query.cursor);
+      const params = cur ? [limit + 1, days, cur.createdAt, cur.id] : [limit + 1, days];
+      const where = cur ? 'AND (c.created_at, c.id) > ($3::timestamptz, $4::uuid)' : '';
+      const { rows } = await client.query(`
+        SELECT c.id, c.lesson_id, l.course_id, l.title AS lesson_title, l.status AS lesson_status,
+               c.authority, c.url, c.verified_on,
+               CASE WHEN c.verified_on IS NULL THEN NULL
+                    ELSE (current_date - c.verified_on)::int END AS days_since_verified,
+               c.created_at,
+               to_char(c.created_at AT TIME ZONE 'utc', 'YYYY-MM-DD HH24:MI:SS.US+00') AS cursor_ts
+          FROM citation c JOIN lesson l ON l.id = c.lesson_id
+         WHERE (c.verified_on IS NULL OR c.verified_on < current_date - ($2::int))
+           ${where}
+         ORDER BY c.created_at, c.id LIMIT $1`, params);
+      return { status: 200, body: { days, ...packPage(rows, limit) } };
+    },
+  },
+
+  // approvals (append-only record of who signed what)
+  {
+    method: 'POST', path: '/v1/approvals', scope: 'admin', schema: S.approvalCreate,
+    summary: 'Record an approval for a course, lesson or assessment. Append-only; the subject must exist in your tenant.',
+    handler: async (client, ctx) => {
+      const b = ctx.body;
+      if (b.approved_on !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(b.approved_on)) {
+        throw new ApiProblem('validation-error', 'approved_on must be YYYY-MM-DD.');
+      }
+      const table = { course: 'course', lesson: 'lesson', assessment: 'assessment' }[b.subject_kind];
+      await one(client, `SELECT id FROM ${table} WHERE id = $1`, [b.subject_id],
+        'not-found', `No ${b.subject_kind} with that id.`);
+      const row = (await client.query(
+        `INSERT INTO approval (tenant_id, subject_kind, subject_id, approver_role, approver_ref, approved_on, note)
+         VALUES ($1, $2, $3, $4, $5, coalesce($6::date, current_date), $7)
+         RETURNING id, subject_kind, subject_id, approver_role, approver_ref, approved_on, note, created_at`,
+        [ctx.tenantId, b.subject_kind, b.subject_id, b.approver_role, b.approver_ref, b.approved_on || null, b.note || ''])).rows[0];
+      return { status: 201, body: row };
+    },
+  },
+  {
+    method: 'GET', path: '/v1/approvals', scope: 'read',
+    queryParams: [
+      { name: 'subject_kind', in: 'query', schema: { type: 'string', enum: ['course', 'lesson', 'assessment'] } },
+      { name: 'subject_id', in: 'query', schema: { type: 'string', format: 'uuid' } },
+      { name: 'approver_role', in: 'query', schema: { type: 'string' } },
+      ...LIST_QUERY_PARAMS,
+    ],
+    summary: 'List approvals, optionally filtered by subject and approver role. Newest first within a subject is up to the caller; order is by creation.',
+    handler: async (client, ctx) => {
+      const q = ctx.query;
+      if (q.subject_kind !== undefined && !['course', 'lesson', 'assessment'].includes(q.subject_kind)) {
+        throw new ApiProblem('validation-error', 'subject_kind must be course, lesson or assessment.');
+      }
+      if (q.subject_id !== undefined && !/^[0-9a-f-]{36}$/i.test(q.subject_id)) {
+        throw new ApiProblem('validation-error', 'subject_id must be a uuid.');
+      }
+      const limit = parseLimit(q);
+      const cur = decodeCursor(q.cursor);
+      const params = [limit + 1];
+      const conds = [];
+      if (q.subject_kind) { params.push(q.subject_kind); conds.push(`subject_kind = $${params.length}`); }
+      if (q.subject_id) { params.push(q.subject_id); conds.push(`subject_id = $${params.length}::uuid`); }
+      if (q.approver_role) { params.push(q.approver_role); conds.push(`approver_role = $${params.length}`); }
+      if (cur) {
+        params.push(cur.createdAt, cur.id);
+        conds.push(`(created_at, id) > ($${params.length - 1}::timestamptz, $${params.length}::uuid)`);
+      }
+      const { rows } = await client.query(`
+        SELECT id, subject_kind, subject_id, approver_role, approver_ref, approved_on, note, created_at,
+               to_char(created_at AT TIME ZONE 'utc', 'YYYY-MM-DD HH24:MI:SS.US+00') AS cursor_ts
+          FROM approval WHERE true ${conds.map((c) => 'AND ' + c).join(' ')}
+         ORDER BY created_at, id LIMIT $1`, params);
+      return { status: 200, body: packPage(rows, limit) };
     },
   },
 ];
