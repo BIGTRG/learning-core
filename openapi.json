@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Learning Core API",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "Headless multi-tenant learning API: structured course content, recomputed progress, server-side scoring with partial credit, publicly verifiable credentials, and metered usage. Content is typed JSON blocks, never markup."
   },
   "servers": [
@@ -1137,6 +1137,50 @@
             "schema": {
               "type": "string",
               "maxLength": 255
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Errors are RFC 9457 Problem Details (application/problem+json).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "2XX": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/attempts/{id}": {
+      "get": {
+        "summary": "Fetch an attempt with its status, score and per-item points awarded. Never answer keys.",
+        "operationId": "get_v1_attempts_id",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
             }
           }
         ],

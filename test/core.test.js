@@ -79,6 +79,12 @@ test('EXPLAIN on a tenant-scoped query uses the tenant_id-leading index', async 
   await app.connect();
   await app.query('BEGIN');
   await app.query('SELECT set_config($1, $2, true)', ['app.tenant_id', A.id]);
+  // On a table this small the planner rightly prefers a seq scan, which made
+  // this assertion flap once the test tenants accumulated. The invariant is
+  // that the RLS-injected tenant_id predicate + (created_at, id) ordering is
+  // servable by learner_tenant_idx, so force index paths and check WHICH one.
+  await app.query('SET LOCAL enable_seqscan = off');
+  await app.query('SET LOCAL enable_bitmapscan = off');
   const { rows } = await app.query(
     'EXPLAIN (FORMAT TEXT) SELECT id FROM learner WHERE created_at > now() - interval \'1 day\' ORDER BY created_at, id LIMIT 50');
   await app.query('COMMIT');
