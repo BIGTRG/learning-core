@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Learning Core API",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "description": "Headless multi-tenant learning API: structured course content, recomputed progress, server-side scoring with partial credit, publicly verifiable credentials, and metered usage. Content is typed JSON blocks, never markup."
   },
   "servers": [
@@ -169,6 +169,72 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update a learner. external_ref is meant to be permanent: a contact change (email, employer, name) is a display_name change at most. external_ref may only be moved to a value no other learner of yours holds (409 otherwise); the id, enrollments, attempts and credentials stay attached.",
+        "operationId": "patch_v1_learners_id",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Errors are RFC 9457 Problem Details (application/problem+json).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "2XX": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "display_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "external_ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
                 }
               }
             }
@@ -1461,6 +1527,81 @@
         }
       }
     },
+    "/v1/credentials/{id}/revoke": {
+      "post": {
+        "summary": "Revoke a credential with a reason. One-way: a revoked credential can never be reactivated (database-enforced). The public verify record then reports status revoked with the reason.",
+        "operationId": "post_v1_credentials_id_revoke",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Stripe-semantics idempotency: replays return the stored response byte-identical with Idempotent-Replay: true; reuse with a different request is a 422; in-flight is a 409. Retained 24h.",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Errors are RFC 9457 Problem Details (application/problem+json).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "2XX": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/usage": {
       "get": {
         "summary": "Your own metered usage by day. A customer who cannot audit their bill will not renew.",
@@ -1989,7 +2130,7 @@
     },
     "/v1/verify/{ref}": {
       "get": {
-        "summary": "Public credential verification. No API key. Exact-match only; strictly rate limited per IP.",
+        "summary": "Public credential verification. No API key. Exact-match only; strictly rate limited per IP. Fields: public_ref, status (active|revoked), learner_name, course_title, rank_name, rank_meta (opaque tenant JSON, e.g. a display colour), issuer, issued_at, revoked_at, revoke_reason.",
         "operationId": "get_v1_verify_ref",
         "security": [],
         "parameters": [

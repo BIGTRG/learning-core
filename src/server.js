@@ -178,7 +178,7 @@ async function handle(req, res) {
     // body
     let bodyRaw = '';
     let body = undefined;
-    if (req.method === 'POST') {
+    if (req.method === 'POST' || req.method === 'PATCH') {
       bodyRaw = await readBody(req);
       if (route.schema) {
         try { body = bodyRaw ? JSON.parse(bodyRaw) : {}; }

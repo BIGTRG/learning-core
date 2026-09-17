@@ -61,7 +61,7 @@ function generate() {
   // Public + meta endpoints not in the auth'd table.
   paths['/v1/verify/{ref}'] = {
     get: {
-      summary: 'Public credential verification. No API key. Exact-match only; strictly rate limited per IP.',
+      summary: 'Public credential verification. No API key. Exact-match only; strictly rate limited per IP. Fields: public_ref, status (active|revoked), learner_name, course_title, rank_name, rank_meta (opaque tenant JSON, e.g. a display colour), issuer, issued_at, revoked_at, revoke_reason.',
       operationId: 'get_v1_verify_ref',
       security: [],
       parameters: [{ name: 'ref', in: 'path', required: true, schema: { type: 'string' } }],

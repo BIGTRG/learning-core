@@ -59,10 +59,11 @@ async function api(key, method, path, body, headers = {}) {
 }
 
 /** Build a full published course+assessment+enrolled learner; returns ids. */
-async function fixture(key) {
+async function fixture(key, courseExtra = {}) {
   const course = (await api(key, 'POST', '/v1/courses', {
     title: 'T Course', status: 'published',
     modules: [{ title: 'M1', position: 1 }],
+    ...courseExtra,
   })).json;
   const lesson = (await api(key, 'POST', `/v1/courses/${course.id}/lessons`, {
     title: 'L1', position: 1, status: 'published',
